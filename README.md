@@ -93,9 +93,14 @@ config.yaml
 
 ```bash
 # CLI 端到端执行（推荐）
-# 此命令将基于 prompt 执行一次完整的端到端工作流：
+# 此命令将执行一次完整的端到端工作流：
 # 包含任务拆分、知识库读取、生成SysML模型、生成并运行MATLAB/Octave仿真、获取结果并反写到DMB。
+
+# 方式一：直接传递 prompt 字符串
 python cli_agent.py --prompt "分析不同导航系数(3.0, 4.0, 5.0)下的脱靶量，并给出最优推荐"
+
+# 方式二：通过文件传递 prompt
+python cli_agent.py --file prompt.txt
 
 # 完整流程演示（用于理解框架执行逻辑）
 python run_complete_workflow.py

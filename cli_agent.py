@@ -5,6 +5,7 @@ Multi-Agent Guidance System - CLI End-to-End Execution
 
 import asyncio
 import argparse
+import math
 import os
 import json
 from pathlib import Path
@@ -40,12 +41,12 @@ async def main(args):
 
     rag = RAGKnowledgeBase()
     await rag.initialize()
-    # Dummy data just to ensure RAG works
-    await rag.index_documents([
-        {"content": "比例导引律（PN）是最常用的导引方法，导航系数通常取3-5", "metadata": {"topic": "guidance_law"}},
-        {"content": "拦截机动目标的导航系数需要增大到4-6", "metadata": {"topic": "guidance_law"}},
-        {"content": "阻尼比0.2-0.5提供良好的系统稳定性", "metadata": {"topic": "stability"}},
-    ])
+    # # Dummy data just to ensure RAG works
+    # await rag.index_documents([
+    #     {"content": "比例导引律（PN）是最常用的导引方法，导航系数通常取3-5", "metadata": {"topic": "guidance_law"}},
+    #     {"content": "拦截机动目标的导航系数需要增大到4-6", "metadata": {"topic": "guidance_law"}},
+    #     {"content": "阻尼比0.2-0.5提供良好的系统稳定性", "metadata": {"topic": "stability"}},
+    # ])
     
     dmb = DynamicMemoryBuffer()
     
@@ -60,13 +61,59 @@ async def main(args):
         hermes = HermesIntegration()
         hermes_available = await hermes.initialize()
     
-    # 2. Task Planning
-    print("\n[Step 2] Task Planning...")
+    # 2. Task Planning & Parameter Extraction
+    print("\n[Step 2] Task Planning & Parameter Extraction...")
+    extracted_params = {}
     if hermes and hermes_available:
         planner = IntelligentTaskPlanner(hermes=hermes)
         task_plan = await planner.analyze_and_plan(args.prompt)
         print(f"  Plan: {task_plan.strategy.value} strategy with {task_plan.subagent_count} subtasks")
         print(f"  Reason: {task_plan.reason}")
+
+        # Extract parameters using LLM
+        prompt_extract = f"""从以下提示词中提取制导系统的初始参数。如果未提及，请不要在 JSON 中包含该字段。
+
+提示词：
+{args.prompt}
+
+请返回以下 JSON 格式（确保键名正确且值为数字或数字数组）：
+{{
+    "navigation_coefficient": 3.0,
+    "damping_ratio": 0.3,
+    "target_position": [18000.0, 2000.0, 5000.0],
+    "target_velocity": [20000.0, 0.0, 0.0],
+    "initial_position": [0.0, 7000.0, 0.0],
+    "initial_velocity": [900.0, 0.0, 0.0]
+}}
+只返回 JSON 内容。"""
+        
+        llm_client = hermes.agent if hasattr(hermes, "agent") else None
+        if llm_client:
+            try:
+                if hasattr(llm_client, "generate"):
+                    response = await llm_client.generate(prompt=prompt_extract)
+                elif hasattr(llm_client, "run_conversation"):
+                    import inspect
+                    if inspect.iscoroutinefunction(llm_client.run_conversation):
+                        response = await llm_client.run_conversation(messages=[{"role": "user", "content": prompt_extract}])
+                    else:
+                        response = llm_client.run_conversation(messages=[{"role": "user", "content": prompt_extract}])
+                    
+                    if isinstance(response, dict):
+                        response = response.get("final_response", "")
+                
+                # Parse JSON
+                if isinstance(response, str):
+                    json_str = response.strip()
+                    if json_str.startswith("```json"):
+                        json_str = json_str[7:-3].strip()
+                    elif json_str.startswith("```"):
+                        json_str = json_str[3:-3].strip()
+                    extracted_params = json.loads(json_str)
+                    print(f"  Extracted Parameters: {extracted_params}")
+            except Exception as e:
+                print(f"  Failed to extract parameters using LLM: {e}")
+                
     else:
         print("  Hermes not available. Skipping task planning.")
 
@@ -79,14 +126,14 @@ async def main(args):
     # 4. Simulation & Optimization
     print("\n[Step 4] Simulation & Optimization (Octave)...")
     
-    # Use baseline parameters
+    # Use baseline parameters and update with extracted ones
     initial_params = GuidanceParameters(
-        navigation_coefficient=3.0,
-        damping_ratio=0.3,
-        target_position=[20000.0, 2000.0, 5000.0],
-        target_velocity=[0.0, 0.0, 0.0],
-        initial_position=[0.0, 7000.0, 0.0],
-        initial_velocity=[960.0, 0.0, 0.0]
+        navigation_coefficient=extracted_params.get("navigation_coefficient", 3.0),
+        damping_ratio=extracted_params.get("damping_ratio", 0.3),
+        target_position=extracted_params.get("target_position", [20000.0, 2000.0, 5000.0]),
+        target_velocity=extracted_params.get("target_velocity", [0.0, 0.0, 0.0]),
+        initial_position=extracted_params.get("initial_position", [0.0, 7000.0, 0.0]),
+        initial_velocity=extracted_params.get("initial_velocity", [960.0, 0.0, 0.0])
     )
 
     study_grid = {
@@ -139,6 +186,14 @@ async def main(args):
     print(f"  Report saved to: {report_path}")
     print("\nWorkflow Complete!")
 
+def _fmt(val):
+    """Format number, showing nan for NaN values"""
+    if isinstance(val, float) and math.isnan(val):
+        return "nan"
+    if isinstance(val, float):
+        return f"{val:.4f}"
+    return str(val)
+
 def generate_report(user_input: str, params: GuidanceParameters, best: dict, study: list) -> str:
     lines = [
         "# 导引系统优化报告",
@@ -157,8 +212,8 @@ def generate_report(user_input: str, params: GuidanceParameters, best: dict, stu
         f"|------|-----|",
         f"| 导航系数 | {best['parameters']['navigation_coefficient']} |",
         f"| 阻尼比 | {best['parameters']['damping_ratio']} |",
-        f"| 脱靶量 | {best['metrics']['miss_distance']:.6f} m |",
-        f"| 控制能量 | {best['metrics']['control_energy']:.6f} J |",
+        f"| 脱靶量 | {_fmt(best['metrics']['miss_distance'])} m |",
+        f"| 控制能量 | {_fmt(best['metrics']['control_energy'])} J |",
         "",
         "## 参数研究结果",
         f"| 导航系数 | 阻尼比 | 脱靶量 | 控制能量 |",
@@ -169,12 +224,23 @@ def generate_report(user_input: str, params: GuidanceParameters, best: dict, stu
         m = r["metrics"]
         lines.append(
             f"| {p['navigation_coefficient']} | {p['damping_ratio']} | "
-            f"{m['miss_distance']:.4f} | {m['control_energy']:.4f} |"
+            f"{_fmt(m['miss_distance'])} | {_fmt(m['control_energy'])} |"
         )
     return "\n".join(lines)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Multi-Agent Guidance CLI Agent")
-    parser.add_argument("--prompt", type=str, required=True, help="User task description")
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument("--prompt", type=str, help="User task description as string")
+    group.add_argument("--file", type=str, help="Path to a text file containing the user task description")
     args = parser.parse_args()
+    
+    if args.file:
+        try:
+            with open(args.file, "r", encoding="utf-8") as f:
+                args.prompt = f.read().strip()
+        except FileNotFoundError:
+            print(f"Error: Prompt file '{args.file}' not found.")
+            exit(1)
+            
     asyncio.run(main(args))

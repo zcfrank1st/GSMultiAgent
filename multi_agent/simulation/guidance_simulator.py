@@ -4,7 +4,9 @@ Guidance System Simulation Module
 自动生成 SysML 模型和 MATLAB/Simulink 脚本进行迭代模拟验证
 """
 
+import math
 import os
+import re
 import json
 import logging
 from typing import Any, Dict, List, Optional, Tuple
@@ -213,10 +215,10 @@ class MATLABScriptGenerator:
         
         try:
             with open(base_script_path, "r", encoding="utf-8") as f:
-                base_script = f.read()
+                script = f.read()
         except FileNotFoundError:
             logger.error(f"Base MATLAB script not found at {base_script_path}")
-            base_script = "% Error: Base script not found\n"
+            script = "% Error: Base script not found\n"
             
         # 根据 params 替换初始条件和目标运动
         
@@ -232,59 +234,65 @@ class MATLABScriptGenerator:
         nav_coeff = params.navigation_coefficient
         damping = params.damping_ratio
         
-        # 使用简单的字符串替换来更新初始条件
-        # 注意: 实际项目中可能需要更复杂的正则表达式或 AST 解析
-        
-        # 修改制导律中的参数
-        script = base_script.replace(
-            "function chengxu_robust_analysis_singlefile", 
-            f"function [miss_distance, control_energy, trajectory] = {script_name.replace('.m', '')}()"
+        # 使用正则表达式替换来更新初始条件，更健壮
+        # 修改函数名
+        script = re.sub(
+            r"function\s+chengxu_robust_analysis_singlefile\b",
+            f"function [miss_distance, control_energy, trajectory] = {script_name.replace('.m', '')}()",
+            script
         )
-        
-        # 替换目标运动 (简化版替换，针对不同工况可能需要定制)
-        script = script.replace(
-            "T_x=20000;T_y=2000;T_z=5000;",
-            f"T_x={target_x};T_y={target_y};T_z={target_z};"
+
+        # 替换目标初始位置 T_x=T_y=T_z=
+        script = re.sub(
+            r"T_x=20000;T_y=2000;T_z=5000;",
+            f"T_x={target_x};T_y={target_y};T_z={target_z};",
+            script
         )
-        
-        # 替换初始条件
-        script = script.replace(
-            "y=7000;x=0;z=0;V=960;",
-            f"y={init_y};x={init_x};z={init_z};V={init_v};"
+
+        # 替换初始条件 (多种变体)
+        script = re.sub(
+            r"y=7000(;x=0;z=0;V=960;|;x=0;z=0;V=960;)",
+            f"y={init_y};x={init_x};z={init_z};V={init_v};",
+            script
         )
-        script = script.replace(
-            "upsilon=-0/C45;gama=0/C45;phi=0/C45;theta=-0/C45;phiv=0;",
-            f"upsilon={init_upsilon}/C45;gama={init_gama}/C45;phi={init_phi}/C45;theta={init_upsilon}/C45;phiv={init_phi};"
+
+        # 替换角度初始化
+        script = re.sub(
+            r"upsilon=-0/C45;gama=0/C45;phi=0/C45;theta=-0/C45;phiv=0;",
+            f"upsilon={init_upsilon}/C45;gama={init_gama}/C45;phi={init_phi}/C45;theta={init_upsilon}/C45;phiv={init_phi};",
+            script
         )
-        script = script.replace(
-            "gama_max=45/C45;",
-            f"gama_max={gama_max}/C45;"
+
+        # 替换最大可用过载
+        script = re.sub(
+            r"gama_max=45/C45;",
+            f"gama_max={gama_max}/C45;",
+            script
         )
-        
-        # 替换目标速度 (假设目标运动在 matlab 脚本中为 T_Vx=250;T_Vy=50;T_Vz=50*cos(0.2*t);)
-        script = script.replace(
-            "T_Vx=250;T_Vy=50;T_Vz=50*cos(0.2*t);",
-            f"T_Vx={target_vx};T_Vy={target_vy};T_Vz={target_vz};"
+
+        # 替换目标速度 (多种变体)
+        script = re.sub(
+            r"T_Vx=250;T_Vy=50;T_Vz=50\*cos\(0\.2\*t\);",
+            f"T_Vx={target_vx};T_Vy={target_vy};T_Vz={target_vz};",
+            script
         )
-        
-        script = script.replace(
-            "T_Vx_end = 250;\n    T_Vy_end = 50;\n    T_Vz_end = 50*cos(0.2*t);",
-            f"T_Vx_end = {target_vx};\n    T_Vy_end = {target_vy};\n    T_Vz_end = {target_vz};"
+
+        script = re.sub(
+            r"T_Vx_end\s*=\s*250;\s*T_Vy_end\s*=\s*50;\s*T_Vz_end\s*=\s*50\*cos\(0\.2\*t\);",
+            f"T_Vx_end = {target_vx};\n    T_Vy_end = {target_vy};\n    T_Vz_end = {target_vz};",
+            script
         )
-        script = script.replace(
-            "T_Vx_end = 250;\nT_Vy_end = 50;\nT_Vz_end = 50*cos(0.2*t);",
-            f"T_Vx_end = {target_vx};\nT_Vy_end = {target_vy};\nT_Vz_end = {target_vz};"
+
+        # 注入 nav_coeff 和 damping_ratio 到制导律
+        script = re.sub(
+            r"ayc_A=3\*sqrt\(Vrx\^2\+Vry\^2\)\*qz_dot;",
+            f"ayc_A={nav_coeff}*sqrt(Vrx^2+Vry^2)*qz_dot - {damping}*Vy_A;",
+            script
         )
-        
-        # 注入 nav_coeff 和 damping_ratio 到 global 变量或直接替换
-        # 这里为了简化，我们在 guidance_local 中直接使用这些参数
-        script = script.replace(
-            "ayc_A=3*sqrt(Vrx^2+Vry^2)*qz_dot;",
-            f"ayc_A={nav_coeff}*sqrt(Vrx^2+Vry^2)*qz_dot - {damping}*Vy_A;"
-        )
-        script = script.replace(
-            "azc_A=-3*sqrt(Vrx^2+Vrz^2)*qy_dot;",
-            f"azc_A=-{nav_coeff}*sqrt(Vrx^2+Vrz^2)*qy_dot + {damping}*Vz_A;"
+        script = re.sub(
+            r"azc_A=-3\*sqrt\(Vrx\^2\+Vrz\^2\)\*qy_dot;",
+            f"azc_A=-{nav_coeff}*sqrt(Vrx^2+Vrz^2)*qy_dot + {damping}*Vz_A;",
+            script
         )
         
         # 确保输出格式兼容现有的解析逻辑
@@ -496,12 +504,12 @@ class SimulationExecutor:
         except Exception as e:
             logger.error(f"Simulation failed: {e}")
             return SimulationResult(
-                miss_distance=0,
-                control_energy=0,
-                max_overshoot=0,
-                settling_time=0,
-                final_position=[0, 0],
-                final_velocity=[0, 0],
+                miss_distance=float('nan'),
+                control_energy=float('nan'),
+                max_overshoot=float('nan'),
+                settling_time=float('nan'),
+                final_position=[float('nan'), float('nan')],
+                final_velocity=[float('nan'), float('nan')],
                 trajectory=[],
                 execution_time=0,
                 success=False,
@@ -605,42 +613,34 @@ class SimulationExecutor:
     ) -> SimulationResult:
         """使用 Octave 或 MATLAB 执行 .m 脚本"""
 
-        if not os.path.exists(script_path):
+        def _failure_result(error_msg: str) -> SimulationResult:
             return SimulationResult(
-                miss_distance=0,
-                control_energy=0,
-                max_overshoot=0,
-                settling_time=0,
-                final_position=[0, 0],
-                final_velocity=[0, 0],
+                miss_distance=float('nan'),
+                control_energy=float('nan'),
+                max_overshoot=float('nan'),
+                settling_time=float('nan'),
+                final_position=[float('nan'), float('nan')],
+                final_velocity=[float('nan'), float('nan')],
                 trajectory=[],
                 execution_time=0,
                 success=False,
-                error=f"Script not found: {script_path}",
+                error=error_msg,
             )
+
+        if not os.path.exists(script_path):
+            return _failure_result(f"Script not found: {script_path}")
 
         try:
             import subprocess
 
             if self.engine == "octave":
-                cmd = [self.octave_path, "--quiet", "--eval", f"run('{script_path}')"]
+                cmd = [self.octave_path, "--quiet", "--eval", f"pkg load control; run('{script_path}')"]
                 exe_name = "Octave"
             elif self.engine == "matlab":
                 cmd = [self.matlab_path, "-batch", f"run('{script_path}')"]
                 exe_name = "MATLAB"
             else:
-                return SimulationResult(
-                    miss_distance=0,
-                    control_energy=0,
-                    max_overshoot=0,
-                    settling_time=0,
-                    final_position=[0, 0],
-                    final_velocity=[0, 0],
-                    trajectory=[],
-                    execution_time=0,
-                    success=False,
-                    error=f"Unsupported engine: {self.engine}",
-                )
+                return _failure_result(f"Unsupported engine: {self.engine}")
 
             result = subprocess.run(
                 cmd,
@@ -650,18 +650,7 @@ class SimulationExecutor:
             )
 
             if result.returncode != 0:
-                return SimulationResult(
-                    miss_distance=0,
-                    control_energy=0,
-                    max_overshoot=0,
-                    settling_time=0,
-                    final_position=[0, 0],
-                    final_velocity=[0, 0],
-                    trajectory=[],
-                    execution_time=0,
-                    success=False,
-                    error=f"{exe_name} error: {result.stderr}",
-                )
+                return _failure_result(f"{exe_name} error: {result.stderr[:500]}")
 
             # Parse output for metrics
             return self._parse_external_output(result.stdout)
@@ -671,46 +660,46 @@ class SimulationExecutor:
             return await self._python_simulation(GuidanceParameters(), 100.0, 0.01)
         except Exception as e:
             logger.error(f"{self.engine} execution failed: {e}")
-            return SimulationResult(
-                miss_distance=0,
-                control_energy=0,
-                max_overshoot=0,
-                settling_time=0,
-                final_position=[0, 0],
-                final_velocity=[0, 0],
-                trajectory=[],
-                execution_time=0,
-                success=False,
-                error=str(e),
-            )
+            return _failure_result(str(e))
 
     def _parse_external_output(self, stdout: str) -> SimulationResult:
         """解析 Octave/MATLAB 输出来提取指标"""
-        miss_distance = 0.0
-        control_energy = 0.0
+        miss_distance = float('nan')
+        control_energy = float('nan')
         success = False
 
+        # 使用正则表达式匹配多种格式
+        miss_pattern = re.compile(r'miss[_\s]*distance\s*[=:]*\s*([-+]?\d*\.?\d+)', re.IGNORECASE)
+        miss_min_pattern = re.compile(r'miss_min\s*[=:]\s*([-+]?\d*\.?\d+)', re.IGNORECASE)
+        energy_pattern = re.compile(r'control[_\s]*energy\s*[=:]*\s*([-+]?\d*\.?\d+)', re.IGNORECASE)
+
         for line in stdout.split('\n'):
-            line = line.strip().lower()
-            if 'miss distance' in line or 'miss_distance' in line:
-                parts = line.split()
-                for i, p in enumerate(parts):
+            # 尝试匹配 miss distance 或 miss_min
+            if miss_distance is None or (isinstance(miss_distance, float) and math.isnan(miss_distance)):
+                m = miss_pattern.search(line)
+                if m:
                     try:
-                        if p.replace('.', '').replace('-', '').isdigit():
-                            miss_distance = float(p)
+                        miss_distance = float(m.group(1))
+                        success = True
+                    except ValueError:
+                        pass
+                else:
+                    mm = miss_min_pattern.search(line)
+                    if mm:
+                        try:
+                            miss_distance = float(mm.group(1))
                             success = True
-                            break
-                    except ValueError:
-                        continue
-            elif 'control energy' in line or 'control_energy' in line:
-                parts = line.split()
-                for i, p in enumerate(parts):
+                        except ValueError:
+                            pass
+
+            # 尝试匹配 control energy
+            if math.isnan(control_energy if isinstance(control_energy, float) else 0):
+                e = energy_pattern.search(line)
+                if e:
                     try:
-                        if p.replace('.', '').replace('-', '').isdigit():
-                            control_energy = float(p)
-                            break
+                        control_energy = float(e.group(1))
                     except ValueError:
-                        continue
+                        pass
 
         return SimulationResult(
             miss_distance=miss_distance,
