@@ -95,9 +95,9 @@ async def main(args):
                 elif hasattr(llm_client, "run_conversation"):
                     import inspect
                     if inspect.iscoroutinefunction(llm_client.run_conversation):
-                        response = await llm_client.run_conversation(messages=[{"role": "user", "content": prompt_extract}])
+                        response = await llm_client.run_conversation(prompt_extract)
                     else:
-                        response = llm_client.run_conversation(messages=[{"role": "user", "content": prompt_extract}])
+                        response = llm_client.run_conversation(prompt_extract)
                     
                     if isinstance(response, dict):
                         response = response.get("final_response", "")
