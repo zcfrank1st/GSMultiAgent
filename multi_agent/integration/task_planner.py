@@ -90,7 +90,12 @@ class IntelligentTaskPlanner:
         import json
 
         try:
-            if hasattr(self.llm_client, "generate"):
+            if hasattr(self.hermes, "run_with_tools"):
+                response = await self.hermes.run_with_tools(
+                    f"System: 你是一个任务规划专家，擅长分析任务复杂度并制定最优执行策略。\n\nUser: {prompt}",
+                    tools=[]
+                )
+            elif hasattr(self.llm_client, "generate"):
                 response = await self.llm_client.generate(
                     prompt=prompt,
                     system_prompt="你是一个任务规划专家，擅长分析任务复杂度并制定最优执行策略。",
@@ -102,19 +107,17 @@ class IntelligentTaskPlanner:
                     response = await self.llm_client.run_conversation(msg)
                 else:
                     response = self.llm_client.run_conversation(msg)
-                
+
                 if isinstance(response, dict):
                     response = response.get("final_response", str(response))
-            elif hasattr(self.hermes, "run_with_tools"):
-                response = await self.hermes.run_with_tools(
-                    f"System: 你是一个任务规划专家，擅长分析任务复杂度并制定最优执行策略。\n\nUser: {prompt}", 
-                    tools=[]
-                )
             else:
                 raise RuntimeError("No supported text generation method found on LLM client or hermes.")
 
             # 清理响应中可能的 markdown 代码块标记
+            if response is None:
+                raise RuntimeError("LLM returned None response")
             cleaned_response = response.strip()
+                
             if cleaned_response.startswith("```json"):
                 cleaned_response = cleaned_response[7:]
             elif cleaned_response.startswith("```"):
@@ -135,6 +138,23 @@ class IntelligentTaskPlanner:
             )
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse LLM response: {e}")
+            # Try to fix common JSON errors
+            try:
+                # Remove trailing commas before closing braces/brackets
+                import re
+                fixed = re.sub(r',\s*([}\]])', r'\1', cleaned_response)
+                data = json.loads(fixed)
+                logger.info("JSON fixed by removing trailing commas")
+                return TaskPlan(
+                    original_task=task,
+                    strategy=ExecutionStrategy(data.get("strategy", "single")),
+                    should_split=data.get("should_split", False),
+                    subagent_count=data.get("subagent_count", 1),
+                    subtasks=data.get("subtasks", [task]),
+                    reason=data.get("reason", ""),
+                )
+            except Exception:
+                pass
             raise RuntimeError(f"LLM returned invalid JSON: {locals().get('response', 'No response generated')[:200]}")
         except Exception as e:
             logger.error(f"LLM planning failed: {e}")

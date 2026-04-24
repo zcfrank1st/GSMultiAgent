@@ -172,6 +172,18 @@ class OptimizerConfig:
 
 
 @dataclass
+class WorkflowConfig:
+    """Workflow Configuration"""
+    max_iterations: int = 3
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "WorkflowConfig":
+        return cls(
+            max_iterations=data.get("max_iterations", 3),
+        )
+
+
+@dataclass
 class AppConfig:
     """Application Configuration"""
     dmb: DMBConfig = field(default_factory=DMBConfig)
@@ -180,6 +192,7 @@ class AppConfig:
     rl: OptimizerRLConfig = field(default_factory=OptimizerRLConfig)
     llm: LLMConfig = field(default_factory=LLMConfig)
     rag: RAGConfig = field(default_factory=RAGConfig)
+    workflow: WorkflowConfig = field(default_factory=WorkflowConfig)
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "AppConfig":
@@ -190,6 +203,7 @@ class AppConfig:
             rl=OptimizerRLConfig.from_dict(data.get("rl", {})),
             llm=LLMConfig.from_dict(data.get("llm", {})),
             rag=RAGConfig.from_dict(data.get("rag", {})),
+            workflow=WorkflowConfig.from_dict(data.get("workflow", {})),
         )
 
 

@@ -38,6 +38,9 @@ async def main(args):
         MemoryType,
     )
     from multi_agent.simulation import GuidanceSimulator
+    from multi_agent.integration.reflection_agent import ReflectionAgent
+    from multi_agent.config_loader import get_config
+    import multi_agent.tools as agent_tools
 
     rag = RAGKnowledgeBase()
     await rag.initialize()
@@ -59,22 +62,43 @@ async def main(args):
     hermes_available = False
     if HERMES_AVAILABLE:
         hermes = HermesIntegration()
-        hermes_available = await hermes.initialize()
+        hermes_available = await hermes.initialize_with_tools(
+            rag_kb=rag,
+            dmb=dmb,
+            simulator=simulator,
+        )
+        if hermes_available:
+            print(f"  Hermes initialized with tools.")
     
-    # 2. Task Planning & Parameter Extraction
-    print("\n[Step 2] Task Planning & Parameter Extraction...")
-    extracted_params = {}
-    if hermes and hermes_available:
-        planner = IntelligentTaskPlanner(hermes=hermes)
-        task_plan = await planner.analyze_and_plan(args.prompt)
-        print(f"  Plan: {task_plan.strategy.value} strategy with {task_plan.subagent_count} subtasks")
-        print(f"  Reason: {task_plan.reason}")
+    reflection_agent = ReflectionAgent()
+    
+    current_prompt = args.prompt
+    max_iterations = get_config().workflow.max_iterations
+    iteration = 0
+    best_result = None
+    study_results = []
+    initial_params = None
 
-        # Extract parameters using LLM
-        prompt_extract = f"""从以下提示词中提取制导系统的初始参数。如果未提及，请不要在 JSON 中包含该字段。
+    while iteration < max_iterations:
+        iteration += 1
+        print(f"\n{'='*40}")
+        print(f"Iteration {iteration}/{max_iterations}")
+        print(f"{'='*40}")
+
+        # 2. Task Planning & Parameter Extraction
+        print("\n[Step 2] Task Planning & Parameter Extraction...")
+        extracted_params = {}
+        if hermes and hermes_available:
+            planner = IntelligentTaskPlanner(hermes=hermes)
+            task_plan = await planner.analyze_and_plan(current_prompt)
+            print(f"  Plan: {task_plan.strategy.value} strategy with {task_plan.subagent_count} subtasks")
+            print(f"  Reason: {task_plan.reason}")
+
+            # Extract parameters using LLM
+            prompt_extract = f"""从以下提示词中提取制导系统的初始参数。如果未提及，请不要在 JSON 中包含该字段。
 
 提示词：
-{args.prompt}
+{current_prompt}
 
 请返回以下 JSON 格式（确保键名正确且值为数字或数字数组）：
 {{
@@ -86,80 +110,104 @@ async def main(args):
     "initial_velocity": [900.0, 0.0, 0.0]
 }}
 只返回 JSON 内容。"""
-        
-        llm_client = hermes.agent if hasattr(hermes, "agent") else None
-        if llm_client:
-            try:
-                if hasattr(llm_client, "generate"):
-                    response = await llm_client.generate(prompt=prompt_extract)
-                elif hasattr(llm_client, "run_conversation"):
-                    import inspect
-                    if inspect.iscoroutinefunction(llm_client.run_conversation):
-                        response = await llm_client.run_conversation(prompt_extract)
-                    else:
-                        response = llm_client.run_conversation(prompt_extract)
+            
+            llm_client = hermes.agent if hasattr(hermes, "agent") else None
+            if llm_client:
+                try:
+                    if hasattr(llm_client, "generate"):
+                        response = await llm_client.generate(prompt=prompt_extract)
+                    elif hasattr(llm_client, "run_conversation"):
+                        import inspect
+                        if inspect.iscoroutinefunction(llm_client.run_conversation):
+                            response = await llm_client.run_conversation(prompt_extract)
+                        else:
+                            response = llm_client.run_conversation(prompt_extract)
+                        
+                        if isinstance(response, dict):
+                            response = response.get("final_response", "")
                     
-                    if isinstance(response, dict):
-                        response = response.get("final_response", "")
-                
-                # Parse JSON
-                if isinstance(response, str):
-                    json_str = response.strip()
-                    if json_str.startswith("```json"):
-                        json_str = json_str[7:-3].strip()
-                    elif json_str.startswith("```"):
-                        json_str = json_str[3:-3].strip()
-                    extracted_params = json.loads(json_str)
-                    print(f"  Extracted Parameters: {extracted_params}")
-            except Exception as e:
-                print(f"  Failed to extract parameters using LLM: {e}")
-                
-    else:
-        print("  Hermes not available. Skipping task planning.")
+                    # Parse JSON
+                    if isinstance(response, str):
+                        json_str = response.strip()
+                        if json_str.startswith("```json"):
+                            json_str = json_str[7:-3].strip()
+                        elif json_str.startswith("```"):
+                            json_str = json_str[3:-3].strip()
+                        extracted_params = json.loads(json_str)
+                        print(f"  Extracted Parameters: {extracted_params}")
+                except Exception as e:
+                    print(f"  Failed to extract parameters using LLM: {e}")
+                    
+        else:
+            print("  Hermes not available. Skipping task planning.")
 
-    # 3. RAG Knowledge Retrieval
-    print("\n[Step 3] RAG Knowledge Retrieval...")
-    rag_results = await rag.retrieve("导引律", top_k=2)
-    for i, r in enumerate(rag_results, 1):
-        print(f"  [{i}] {r['content'][:50]}...")
+        # 3. RAG Knowledge Retrieval
+        print("\n[Step 3] RAG Knowledge Retrieval...")
+        rag_results = await rag.retrieve("导引律", top_k=2)
+        for i, r in enumerate(rag_results, 1):
+            print(f"  [{i}] {r['content'][:50]}...")
 
-    # 4. Simulation & Optimization
-    print("\n[Step 4] Simulation & Optimization (Octave)...")
-    
-    # Use baseline parameters and update with extracted ones
-    initial_params = GuidanceParameters(
-        navigation_coefficient=extracted_params.get("navigation_coefficient", 3.0),
-        damping_ratio=extracted_params.get("damping_ratio", 0.3),
-        target_position=extracted_params.get("target_position", [20000.0, 2000.0, 5000.0]),
-        target_velocity=extracted_params.get("target_velocity", [0.0, 0.0, 0.0]),
-        initial_position=extracted_params.get("initial_position", [0.0, 7000.0, 0.0]),
-        initial_velocity=extracted_params.get("initial_velocity", [960.0, 0.0, 0.0])
-    )
+        # 4. Simulation & Optimization
+        print("\n[Step 4] Simulation & Optimization (Octave)...")
+        
+        # Use baseline parameters and update with extracted ones
+        initial_params = GuidanceParameters(
+            navigation_coefficient=extracted_params.get("navigation_coefficient", 3.0),
+            damping_ratio=extracted_params.get("damping_ratio", 0.3),
+            target_position=extracted_params.get("target_position", [20000.0, 2000.0, 5000.0]),
+            target_velocity=extracted_params.get("target_velocity", [0.0, 0.0, 0.0]),
+            initial_position=extracted_params.get("initial_position", [0.0, 7000.0, 0.0]),
+            initial_velocity=extracted_params.get("initial_velocity", [960.0, 0.0, 0.0])
+        )
 
-    study_grid = {
-        "navigation_coefficient": [3.0, 4.0, 5.0],
-        "damping_ratio": [0.2, 0.3, 0.4],
-    }
+        study_grid = {
+            "navigation_coefficient": [3.0, 4.0, 5.0],
+            "damping_ratio": [0.2, 0.3, 0.4],
+        }
 
-    study_results = await simulator.parameter_study(
-        param_grid=study_grid,
-        duration=100.0,
-        dt=0.01,
-    )
+        study_results = await simulator.parameter_study(
+            param_grid=study_grid,
+            duration=100.0,
+            dt=0.01,
+        )
 
-    valid_results = [r for r in study_results if r["metrics"]["success"]]
-    if not valid_results:
-        # If external simulation fails, fallback logic usually catches it, but if it doesn't:
-        print("  All simulations failed! Using best effort metrics.")
-        valid_results = study_results
+        valid_results = [r for r in study_results if r["metrics"]["success"]]
+        if not valid_results:
+            # If external simulation fails, fallback logic usually catches it, but if it doesn't:
+            print("  All simulations failed! Using best effort metrics.")
+            valid_results = study_results
 
-    best_result = min(
-        valid_results,
-        key=lambda r: (r["metrics"]["miss_distance"] * 1.0 + r["metrics"]["control_energy"] * 10.0),
-    )
+        best_result = min(
+            valid_results,
+            key=lambda r: (r["metrics"]["miss_distance"] * 1.0 + r["metrics"]["control_energy"] * 10.0),
+        )
 
-    print(f"  Best Parameters: Nav={best_result['parameters']['navigation_coefficient']}, Damping={best_result['parameters']['damping_ratio']}")
-    print(f"  Best Metrics: Miss Distance={best_result['metrics']['miss_distance']:.4f}m, Control Energy={best_result['metrics']['control_energy']:.4f}J")
+        print(f"  Best Parameters: Nav={best_result['parameters']['navigation_coefficient']}, Damping={best_result['parameters']['damping_ratio']}")
+        print(f"  Best Metrics: Miss Distance={best_result['metrics']['miss_distance']:.4f}m, Control Energy={best_result['metrics']['control_energy']:.4f}J")
+        
+        # 4.5 Result Reflection
+        print("\n[Step 4.5] Result Reflection & Discrimination...")
+        reflection = await reflection_agent.reflect(current_prompt, best_result)
+        
+        print("  [Reflection Output]:")
+        print(f"  {json.dumps(reflection, ensure_ascii=False, indent=2)}")
+        
+        needs_optimization = reflection.get("needs_optimization", False)
+        suggestion = reflection.get("suggestion", "")
+        
+        print(f"  Needs Optimization: {needs_optimization}")
+        print(f"  Suggestion: {suggestion}")
+        
+        if needs_optimization and iteration < max_iterations:
+            print("  Simulation result needs optimization. Feeding back to Hermes...")
+            current_prompt = f"{args.prompt}\n\n[Previous Simulation Result & Optimization Suggestion]: {suggestion}"
+            continue
+        elif needs_optimization and iteration >= max_iterations:
+            print("  Reached max iterations. Ending loop.")
+            break
+        else:
+            print("  Simulation result accepted! Ending loop.")
+            break
 
     # 5. DMB Experience Writeback
     print("\n[Step 5] Writing Experience to DMB...")

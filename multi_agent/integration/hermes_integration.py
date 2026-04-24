@@ -6,7 +6,9 @@ Hermes Agent Integration Layer
 import os
 import logging
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
+import warnings
+warnings.filterwarnings("ignore", message="Could not import tool module")
 
 logger = logging.getLogger(__name__)
 
@@ -71,13 +73,34 @@ try:
                 logger.error(f"Failed to initialize Hermes: {e}")
                 return False
 
-        async def run_with_tools(self, user_message: str, tools: List[Any]) -> str:
+        async def run_with_tools(self, user_message: str, tools: List[Any] = None) -> str:
+            if tools is None:
+                tools = []
             if not self._initialized:
                 await self.initialize()
             if not self.agent:
                 return "Hermes Agent not available"
             try:
-                self.agent.tools = tools
+                # Only update tools if non-empty list is provided
+                if tools:
+                    # Format tools to JSON schema format expected by the LLM client
+                    formatted_tools = []
+                    for tool in tools:
+                        if hasattr(tool, "input_schema") and hasattr(tool, "name") and hasattr(tool, "description"):
+                            formatted_tools.append({
+                                "type": "function",
+                                "function": {
+                                    "name": tool.name,
+                                    "description": tool.description,
+                                    "parameters": tool.input_schema
+                                }
+                            })
+                        else:
+                            formatted_tools.append(tool) # Fallback to original if not a standard tool
+
+                    self.agent.tools = formatted_tools
+                # else: keep existing self.agent.tools
+
                 import inspect
                 if inspect.iscoroutinefunction(self.agent.run_conversation):
                     response = await self.agent.run_conversation(user_message)
@@ -89,11 +112,112 @@ try:
                 return response
             except Exception as e:
                 logger.error(f"Conversation failed: {e}")
-                return f"Error: {e}"
+                return None
 
         async def generate_text(self, prompt: str) -> str:
             """Simple text generation using the agent"""
             return await self.run_with_tools(prompt, tools=[])
+
+        def get_all_tools(self) -> List[Any]:
+            """Get all available tools from the tools directory"""
+            from ..tools import (
+                RAGRetrievalTool,
+                RAGIndexTool,
+                DMBSearchTool,
+                DMBStoreTool,
+                DMBBestTool,
+                DMBStatsTool,
+                MemorySearchTool,
+                MemoryStoreTool,
+                MemoryStatsTool,
+                OptimizationTool,
+                GenerateSysMLTool,
+                GenerateMATLABTool,
+                RunSimulationTool,
+                ParameterStudyTool,
+                OptimizeParametersTool,
+            )
+            from ..tools.optimization_tool import SimulationTool, OptimizationWithSimulationTool
+
+            tools = [
+                RAGRetrievalTool(),
+                RAGIndexTool(),
+                DMBSearchTool(),
+                DMBStoreTool(),
+                DMBBestTool(),
+                DMBStatsTool(),
+                MemorySearchTool(),
+                MemoryStoreTool(),
+                MemoryStatsTool(),
+                OptimizationTool(),
+                SimulationTool(),
+                OptimizationWithSimulationTool(),
+                GenerateSysMLTool(),
+                GenerateMATLABTool(),
+                RunSimulationTool(),
+                ParameterStudyTool(),
+                OptimizeParametersTool(),
+            ]
+            return tools
+
+        def format_tools_for_agent(self, tools: List[Any]) -> List[Dict[str, Any]]:
+            """Format tools to JSON schema format expected by the LLM client"""
+            formatted_tools = []
+            for tool in tools:
+                if hasattr(tool, "input_schema") and hasattr(tool, "name") and hasattr(tool, "description"):
+                    formatted_tools.append({
+                        "type": "function",
+                        "function": {
+                            "name": tool.name,
+                            "description": tool.description,
+                            "parameters": tool.input_schema
+                        }
+                    })
+                else:
+                    formatted_tools.append(tool)
+            return formatted_tools
+
+        async def initialize_with_tools(
+            self,
+            rag_kb=None,
+            dmb=None,
+            simulator=None,
+            optimizer=None,
+            orchestrator=None,
+        ) -> bool:
+            """Initialize Hermes agent with all tools registered"""
+            if not HERMES_AVAILABLE:
+                return False
+            try:
+                self.agent = AIAgent(
+                    base_url=self.base_url,
+                    api_key=self.api_key,
+                    provider=self.provider,
+                    model=self.model,
+                    max_iterations=90,
+                )
+                tools = self.get_all_tools()
+
+                # Inject dependencies into tools
+                for tool in tools:
+                    if rag_kb and hasattr(tool, "set_rag_kb"):
+                        tool.set_rag_kb(rag_kb)
+                    if dmb and hasattr(tool, "set_dmb"):
+                        tool.set_dmb(dmb)
+                    if simulator and hasattr(tool, "set_simulator"):
+                        tool.set_simulator(simulator)
+                    if optimizer and hasattr(tool, "set_optimizer"):
+                        tool.set_optimizer(optimizer)
+                    if orchestrator and hasattr(tool, "set_orchestrator"):
+                        tool.set_orchestrator(orchestrator)
+
+                self.agent.tools = self.format_tools_for_agent(tools)
+                self._initialized = True
+                logger.info(f"Hermes initialized with {len(tools)} tools")
+                return True
+            except Exception as e:
+                logger.error(f"Failed to initialize Hermes with tools: {e}")
+                return False
 
 except ImportError as e:
     logger.warning(f"Hermes Agent not available: {e}")

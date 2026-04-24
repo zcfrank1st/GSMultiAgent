@@ -11,6 +11,11 @@ Multi-Agent Architecture
 
 __version__ = "0.3.0"
 
+import logging
+import warnings
+warnings.filterwarnings("ignore", message="Could not import tool module")
+logging.getLogger("model_tools").setLevel(logging.ERROR)
+
 # Memory
 from .memory.dmb import DynamicMemoryBuffer, MemoryType
 from .memory.rag_knowledge_base import RAGKnowledgeBase, EmbeddingConfig

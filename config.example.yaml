@@ -31,6 +31,9 @@ rl:
   batch_size: 32
   memory_size: 10000
 
+workflow:
+  max_iterations: 3
+
 # LLM Configuration (大语言模型配置)
 # 注意：可以在此处直接配置大模型参数，也可以通过 .env 文件配置
 llm:
