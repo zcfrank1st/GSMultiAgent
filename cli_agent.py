@@ -140,14 +140,8 @@ async def main(args):
                     
         else:
             print("  Hermes not available. Skipping task planning.")
-
-        # 3. RAG Knowledge Retrieval
-        print("\n[Step 3] RAG Knowledge Retrieval...")
-        rag_results = await rag.retrieve("导引律", top_k=2)
-        for i, r in enumerate(rag_results, 1):
-            print(f"  [{i}] {r['content'][:50]}...")
-
-        # 4. Simulation & Optimization
+        
+        # 3. Simulation & Optimization
         print("\n[Step 4] Simulation & Optimization (Octave)...")
         
         # Use baseline parameters and update with extracted ones
@@ -185,8 +179,8 @@ async def main(args):
         print(f"  Best Parameters: Nav={best_result['parameters']['navigation_coefficient']}, Damping={best_result['parameters']['damping_ratio']}")
         print(f"  Best Metrics: Miss Distance={best_result['metrics']['miss_distance']:.4f}m, Control Energy={best_result['metrics']['control_energy']:.4f}J")
         
-        # 4.5 Result Reflection
-        print("\n[Step 4.5] Result Reflection & Discrimination...")
+        # 3.5 Result Reflection
+        print("\n[Step 3.5] Result Reflection & Discrimination...")
         reflection = await reflection_agent.reflect(current_prompt, best_result)
         
         print("  [Reflection Output]:")
@@ -209,8 +203,8 @@ async def main(args):
             print("  Simulation result accepted! Ending loop.")
             break
 
-    # 5. DMB Experience Writeback
-    print("\n[Step 5] Writing Experience to DMB...")
+    # 4. DMB Experience Writeback
+    print("\n[Step 4] Writing Experience to DMB...")
     await dmb.store(
         task_context={"task": "guidance_optimization", "prompt": args.prompt},
         parameters=best_result["parameters"],
@@ -223,8 +217,8 @@ async def main(args):
     )
     print("  Experience saved successfully.")
 
-    # 6. Generate Report
-    print("\n[Step 6] Generating Report...")
+    # 5. Generate Report
+    print("\n[Step 5] Generating Report...")
     report = generate_report(args.prompt, initial_params, best_result, study_results)
     
     report_path = Path("./guidance_output/report.md")
