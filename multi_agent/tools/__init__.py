@@ -4,7 +4,7 @@ Tools for Hermes Agent
 """
 
 from .rag_tool import RAGRetrievalTool, RAGIndexTool
-from .dmb_tool import DMBSearchTool, DMBStoreTool, DMBBestTool, DMBStatsTool
+from .parameter_experience_tool import ParameterExperienceSearchTool, ParameterExperienceStoreTool, ParameterExperienceBestTool, ParameterExperienceStatsTool
 from .simulation_tool import (
     GenerateSysMLTool,
     GenerateMATLABTool,
@@ -14,16 +14,17 @@ from .simulation_tool import (
 )
 from .memory_tool import MemorySearchTool, MemoryStoreTool, MemoryStatsTool
 from .optimization_tool import OptimizationTool
+from .reflection_tool import ReflectionTool
 
 __all__ = [
     # RAG Tools
     "RAGRetrievalTool",
     "RAGIndexTool",
-    # DMB Tools
-    "DMBSearchTool",
-    "DMBStoreTool",
-    "DMBBestTool",
-    "DMBStatsTool",
+    # ParameterExperience Tools
+    "ParameterExperienceSearchTool",
+    "ParameterExperienceStoreTool",
+    "ParameterExperienceBestTool",
+    "ParameterExperienceStatsTool",
     # Simulation Tools
     "GenerateSysMLTool",
     "GenerateMATLABTool",
@@ -36,4 +37,6 @@ __all__ = [
     "MemoryStatsTool",
     # Optimization Tools
     "OptimizationTool",
+    # Reflection Tools
+    "ReflectionTool",
 ]

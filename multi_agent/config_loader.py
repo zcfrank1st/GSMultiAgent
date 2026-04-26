@@ -90,8 +90,8 @@ class RAGConfig:
 
 
 @dataclass
-class DMBConfig:
-    """DMB Memory Configuration"""
+class ParameterExperienceConfig:
+    """ParameterExperience Memory Configuration"""
     enabled: bool = True
     max_short_term: int = 100
     max_long_term: int = 1000
@@ -99,7 +99,7 @@ class DMBConfig:
     decay_factor: float = 0.95
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "DMBConfig":
+    def from_dict(cls, data: Dict[str, Any]) -> "ParameterExperienceConfig":
         return cls(
             enabled=data.get("enabled", True),
             max_short_term=data.get("max_short_term", 100),
@@ -186,7 +186,7 @@ class WorkflowConfig:
 @dataclass
 class AppConfig:
     """Application Configuration"""
-    dmb: DMBConfig = field(default_factory=DMBConfig)
+    parameter_experience: ParameterExperienceConfig = field(default_factory=ParameterExperienceConfig)
     optimizer: OptimizerConfig = field(default_factory=OptimizerConfig)
     ga: GAConfig = field(default_factory=GAConfig)
     rl: OptimizerRLConfig = field(default_factory=OptimizerRLConfig)
@@ -197,7 +197,7 @@ class AppConfig:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "AppConfig":
         return cls(
-            dmb=DMBConfig.from_dict(data.get("dmb", {})),
+            parameter_experience=ParameterExperienceConfig.from_dict(data.get("parameter_experience", {})),
             optimizer=OptimizerConfig.from_dict(data.get("optimizer", {})),
             ga=GAConfig.from_dict(data.get("ga", {})),
             rl=OptimizerRLConfig.from_dict(data.get("rl", {})),

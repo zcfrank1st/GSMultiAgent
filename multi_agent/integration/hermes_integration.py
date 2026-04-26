@@ -123,10 +123,10 @@ try:
             from ..tools import (
                 RAGRetrievalTool,
                 RAGIndexTool,
-                DMBSearchTool,
-                DMBStoreTool,
-                DMBBestTool,
-                DMBStatsTool,
+                ParameterExperienceSearchTool,
+                ParameterExperienceStoreTool,
+                ParameterExperienceBestTool,
+                ParameterExperienceStatsTool,
                 MemorySearchTool,
                 MemoryStoreTool,
                 MemoryStatsTool,
@@ -136,16 +136,17 @@ try:
                 RunSimulationTool,
                 ParameterStudyTool,
                 OptimizeParametersTool,
+                ReflectionTool,
             )
             from ..tools.optimization_tool import SimulationTool, OptimizationWithSimulationTool
 
             tools = [
                 RAGRetrievalTool(),
                 RAGIndexTool(),
-                DMBSearchTool(),
-                DMBStoreTool(),
-                DMBBestTool(),
-                DMBStatsTool(),
+                ParameterExperienceSearchTool(),
+                ParameterExperienceStoreTool(),
+                ParameterExperienceBestTool(),
+                ParameterExperienceStatsTool(),
                 MemorySearchTool(),
                 MemoryStoreTool(),
                 MemoryStatsTool(),
@@ -157,6 +158,7 @@ try:
                 RunSimulationTool(),
                 ParameterStudyTool(),
                 OptimizeParametersTool(),
+                ReflectionTool(),
             ]
             return tools
 
@@ -180,10 +182,11 @@ try:
         async def initialize_with_tools(
             self,
             rag_kb=None,
-            dmb=None,
+            parameter_experience=None,
             simulator=None,
             optimizer=None,
             orchestrator=None,
+            reflection_agent=None,
         ) -> bool:
             """Initialize Hermes agent with all tools registered"""
             if not HERMES_AVAILABLE:
@@ -202,14 +205,16 @@ try:
                 for tool in tools:
                     if rag_kb and hasattr(tool, "set_rag_kb"):
                         tool.set_rag_kb(rag_kb)
-                    if dmb and hasattr(tool, "set_dmb"):
-                        tool.set_dmb(dmb)
+                    if parameter_experience and hasattr(tool, "set_parameter_experience"):
+                        tool.set_parameter_experience(parameter_experience)
                     if simulator and hasattr(tool, "set_simulator"):
                         tool.set_simulator(simulator)
                     if optimizer and hasattr(tool, "set_optimizer"):
                         tool.set_optimizer(optimizer)
                     if orchestrator and hasattr(tool, "set_orchestrator"):
                         tool.set_orchestrator(orchestrator)
+                    if reflection_agent and hasattr(tool, "set_reflection_agent"):
+                        tool.set_reflection_agent(reflection_agent)
 
                 self.agent.tools = self.format_tools_for_agent(tools)
                 self._initialized = True

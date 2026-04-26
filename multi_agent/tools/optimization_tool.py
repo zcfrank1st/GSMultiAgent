@@ -54,7 +54,7 @@ class OptimizationTool:
 
     def __init__(self, *args, **kwargs):
         self.optimizer = None
-        self.dmb = None
+        self.parameter_experience = None
         self.rl_learner = None
         super().__init__(*args, **kwargs)
 
@@ -62,8 +62,8 @@ class OptimizationTool:
         """Set the optimizer instance (supports any BaseOptimizer implementation)"""
         self.optimizer = optimizer
 
-    def set_dmb(self, dmb) -> None:
-        self.dmb = dmb
+    def set_parameter_experience(self, parameter_experience) -> None:
+        self.parameter_experience = parameter_experience
 
     def set_rl_learner(self, rl_learner) -> None:
         self.rl_learner = rl_learner

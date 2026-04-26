@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Dynamic Memory Buffer (DMB)
+Dynamic Memory Buffer (Parameter Experience)
 Implements trial-error-learning-reuse cycle
 Supports short-term (current task) and long-term (validated best parameters) memory
 """
@@ -39,14 +39,14 @@ class MemoryEntry:
     metadata: Dict[str, Any] = field(default_factory=dict)
 
 
-class DynamicMemoryBuffer:
+class ParameterExperience:
     def __init__(
         self,
         max_short_term_size: int = 100,
         max_long_term_size: int = 1000,
         similarity_threshold: float = 0.7,
         decay_factor: float = 0.95,
-        persist_path: str = "./dmb_memory.json",
+        persist_path: str = "./parameter_experience_memory.json",
     ):
         self.max_short_term_size = max_short_term_size
         self.max_long_term_size = max_long_term_size
@@ -319,10 +319,10 @@ class DynamicMemoryBuffer:
             with open(self.persist_path, 'w', encoding='utf-8') as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
                 
-            logger.info(f"Successfully saved DMB memory to {self.persist_path}")
+            logger.info(f"Successfully saved Parameter Experience memory to {self.persist_path}")
             return True
         except Exception as e:
-            logger.error(f"Failed to save DMB memory to disk: {e}")
+            logger.error(f"Failed to save Parameter Experience memory to disk: {e}")
             return False
 
     def load(self) -> bool:
@@ -357,8 +357,8 @@ class DynamicMemoryBuffer:
             # Load access counts
             self._access_counts = data.get("access_counts", {})
             
-            logger.info(f"Successfully loaded DMB memory from {self.persist_path}")
+            logger.info(f"Successfully loaded Parameter Experience memory from {self.persist_path}")
             return True
         except Exception as e:
-            logger.error(f"Failed to load DMB memory from disk: {e}")
+            logger.error(f"Failed to load Parameter Experience memory from disk: {e}")
             return False

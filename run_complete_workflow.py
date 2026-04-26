@@ -35,7 +35,7 @@ async def main():
         HERMES_AVAILABLE,
         IntelligentTaskPlanner,
         RAGKnowledgeBase,
-        DynamicMemoryBuffer,
+        ParameterExperience,
         MemoryType,
         ReinforcementLearner,
         RLModuleConfig as RLConfig,
@@ -45,8 +45,8 @@ async def main():
     from multi_agent.tools import (
         RAGRetrievalTool,
         RAGIndexTool,
-        DMBSearchTool,
-        DMBStoreTool,
+        ParameterExperienceSearchTool,
+        ParameterExperienceStoreTool,
         GenerateSysMLTool,
         GenerateMATLABTool,
         RunSimulationTool,
@@ -78,17 +78,17 @@ async def main():
     )
     print(f"  [1.1] RAG 已索引 5 篇文档")
 
-    # 初始化 DMB 记忆
-    print("  [1.2] 初始化 DMB 记忆...")
-    dmb = DynamicMemoryBuffer()
-    await dmb.store(
+    # 初始化 ParameterExperience 记忆
+    print("  [1.2] 初始化 ParameterExperience 记忆...")
+    parameter_experience = ParameterExperience()
+    await parameter_experience.store(
         task_context={"task": "guidance_optimization", "scenario": "stationary_target"},
         parameters={"nav_coeff": 3.0, "damping": 0.3},
         objectives={"miss_distance": 0.5, "control_energy": 0.15},
         fitness=0.85,
         memory_type=MemoryType.LONG_TERM,
     )
-    print(f"  [1.2] DMB 初始化完成")
+    print(f"  [1.2] ParameterExperience 初始化完成")
 
     # 初始化仿真器
     print("  [1.3] 初始化仿真器...")
@@ -129,11 +129,11 @@ async def main():
         print(f"        {r['content'][:50]}...")
 
     # =====================================================================
-    # 阶段4: DMB 经验检索
+    # 阶段4: ParameterExperience 经验检索
     # =====================================================================
-    print("\n[阶段4] DMB 经验检索...")
+    print("\n[阶段4] ParameterExperience 经验检索...")
 
-    similar_exp = await dmb.retrieve_similar(query={"task": "guidance_optimization"}, top_k=3)
+    similar_exp = await parameter_experience.retrieve_similar(query={"task": "guidance_optimization"}, top_k=3)
     print(f"  找到 {len(similar_exp)} 条相似经验")
 
     # =====================================================================
@@ -261,11 +261,11 @@ async def main():
     print(f"       训练统计: {rl_result['learner_stats']}")
 
     # =====================================================================
-    # 阶段7: 结果存储到 DMB
+    # 阶段7: 结果存储到 ParameterExperience
     # =====================================================================
-    print("\n[阶段7] 存储到 DMB...")
+    print("\n[阶段7] 存储到 ParameterExperience...")
 
-    await dmb.store(
+    await parameter_experience.store(
         task_context={"task": "guidance_optimization", "scenario": "stationary_target"},
         parameters=best_result["parameters"],
         objectives={
@@ -276,9 +276,9 @@ async def main():
         memory_type=MemoryType.LONG_TERM,
     )
 
-    dmb_stats = await dmb.get_statistics()
+    parameter_experience_stats = await parameter_experience.get_statistics()
     print(
-        f"       DMB 统计: short={dmb_stats['short_term_count']}, long={dmb_stats['long_term_count']}"
+        f"       ParameterExperience 统计: short={parameter_experience_stats['short_term_count']}, long={parameter_experience_stats['long_term_count']}"
     )
 
     # =====================================================================

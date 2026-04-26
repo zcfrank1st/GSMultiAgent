@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-DMB (Dynamic Memory Buffer) Tools for Hermes Agent
+ParameterExperience (Dynamic Memory Buffer) Tools for Hermes Agent
 Provides experience storage and retrieval capabilities
 """
 
@@ -12,22 +12,22 @@ from dataclasses import dataclass
 logger = logging.getLogger(__name__)
 
 
-class DMBToolMixin:
-    """Mixin class to add DMB capabilities to tools"""
+class ParameterExperienceToolMixin:
+    """Mixin class to add ParameterExperience capabilities to tools"""
 
     def __init__(self, *args, **kwargs):
-        self.dmb = None
+        self.parameter_experience = None
         super().__init__(*args, **kwargs)
 
-    def set_dmb(self, dmb) -> None:
-        """Set the DMB memory buffer"""
-        self.dmb = dmb
+    def set_parameter_experience(self, parameter_experience) -> None:
+        """Set the ParameterExperience memory buffer"""
+        self.parameter_experience = parameter_experience
 
 
-class DMBSearchTool(DMBToolMixin):
-    """Tool for retrieving similar experiences from DMB"""
+class ParameterExperienceSearchTool(ParameterExperienceToolMixin):
+    """Tool for retrieving similar experiences from ParameterExperience"""
 
-    name = "dmb_search"
+    name = "parameter_experience_search"
     description = """
     Search for similar experiences in the dynamic memory buffer.
     Use this when you need to find historical cases with similar task context.
@@ -56,12 +56,12 @@ class DMBSearchTool(DMBToolMixin):
     async def execute(
         self, query: Dict[str, Any], top_k: int = 5, memory_type: str = "all"
     ) -> Dict[str, Any]:
-        """Execute DMB search"""
-        if not self.dmb:
-            return {"status": "error", "message": "DMB not initialized"}
+        """Execute ParameterExperience search"""
+        if not self.parameter_experience:
+            return {"status": "error", "message": "ParameterExperience not initialized"}
 
         try:
-            from ..memory.dmb import MemoryType
+            from ..memory.parameter_experience import MemoryType
 
             mem_type = None
             if memory_type == "short_term":
@@ -69,7 +69,7 @@ class DMBSearchTool(DMBToolMixin):
             elif memory_type == "long_term":
                 mem_type = MemoryType.LONG_TERM
 
-            results = await self.dmb.retrieve_similar(
+            results = await self.parameter_experience.retrieve_similar(
                 query=query, top_k=top_k, memory_type=mem_type
             )
 
@@ -80,14 +80,14 @@ class DMBSearchTool(DMBToolMixin):
                 "experiences": results,
             }
         except Exception as e:
-            logger.error(f"DMB search failed: {e}")
+            logger.error(f"ParameterExperience search failed: {e}")
             return {"status": "error", "message": str(e)}
 
 
-class DMBStoreTool(DMBToolMixin):
-    """Tool for storing experiences in DMB"""
+class ParameterExperienceStoreTool(ParameterExperienceToolMixin):
+    """Tool for storing experiences in ParameterExperience"""
 
-    name = "dmb_store"
+    name = "parameter_experience_store"
     description = """
     Store a new experience in the dynamic memory buffer.
     Use this after successful optimization to save best parameters and results.
@@ -119,16 +119,16 @@ class DMBStoreTool(DMBToolMixin):
         memory_type: str = "short_term",
         metadata: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        """Execute DMB store"""
-        if not self.dmb:
-            return {"status": "error", "message": "DMB not initialized"}
+        """Execute ParameterExperience store"""
+        if not self.parameter_experience:
+            return {"status": "error", "message": "ParameterExperience not initialized"}
 
         try:
-            from ..memory.dmb import MemoryType
+            from ..memory.parameter_experience import MemoryType
 
             mem_type = MemoryType.LONG_TERM if memory_type == "long_term" else MemoryType.SHORT_TERM
 
-            memory_id = await self.dmb.store(
+            memory_id = await self.parameter_experience.store(
                 task_context=task_context,
                 parameters=parameters,
                 objectives=objectives,
@@ -139,14 +139,14 @@ class DMBStoreTool(DMBToolMixin):
 
             return {"status": "success", "memory_id": memory_id}
         except Exception as e:
-            logger.error(f"DMB store failed: {e}")
+            logger.error(f"ParameterExperience store failed: {e}")
             return {"status": "error", "message": str(e)}
 
 
-class DMBBestTool(DMBToolMixin):
+class ParameterExperienceBestTool(ParameterExperienceToolMixin):
     """Tool for retrieving best performing experiences"""
 
-    name = "dmb_best"
+    name = "parameter_experience_best"
     description = """
     Retrieve the best performing experiences for a given task context.
     Use this to leverage proven best solutions for similar tasks.
@@ -166,12 +166,12 @@ class DMBBestTool(DMBToolMixin):
     }
 
     async def execute(self, task_context: Dict[str, Any], top_k: int = 5) -> Dict[str, Any]:
-        """Execute DMB best retrieval"""
-        if not self.dmb:
-            return {"status": "error", "message": "DMB not initialized"}
+        """Execute ParameterExperience best retrieval"""
+        if not self.parameter_experience:
+            return {"status": "error", "message": "ParameterExperience not initialized"}
 
         try:
-            results = await self.dmb.retrieve_best(task_context=task_context, top_k=top_k)
+            results = await self.parameter_experience.retrieve_best(task_context=task_context, top_k=top_k)
 
             return {
                 "status": "success",
@@ -180,14 +180,14 @@ class DMBBestTool(DMBToolMixin):
                 "best_experiences": results,
             }
         except Exception as e:
-            logger.error(f"DMB best retrieval failed: {e}")
+            logger.error(f"ParameterExperience best retrieval failed: {e}")
             return {"status": "error", "message": str(e)}
 
 
-class DMBStatsTool(DMBToolMixin):
-    """Tool for getting DMB statistics"""
+class ParameterExperienceStatsTool(ParameterExperienceToolMixin):
+    """Tool for getting ParameterExperience statistics"""
 
-    name = "dmb_stats"
+    name = "parameter_experience_stats"
     description = """
     Get statistics about the dynamic memory buffer.
     Use this to understand memory usage and performance.
@@ -196,14 +196,14 @@ class DMBStatsTool(DMBToolMixin):
     input_schema = {"type": "object", "properties": {}}
 
     async def execute(self) -> Dict[str, Any]:
-        """Execute DMB stats"""
-        if not self.dmb:
-            return {"status": "error", "message": "DMB not initialized"}
+        """Execute ParameterExperience stats"""
+        if not self.parameter_experience:
+            return {"status": "error", "message": "ParameterExperience not initialized"}
 
         try:
-            stats = await self.dmb.get_statistics()
+            stats = await self.parameter_experience.get_statistics()
 
             return {"status": "success", "statistics": stats}
         except Exception as e:
-            logger.error(f"DMB stats failed: {e}")
+            logger.error(f"ParameterExperience stats failed: {e}")
             return {"status": "error", "message": str(e)}

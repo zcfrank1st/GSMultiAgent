@@ -1,6 +1,6 @@
 # Multi-Agent Architecture
 
-基于 **Hermes Agent** + **RAG** + **DMB** + **Simulation** 的多智能体系统。
+基于 **Hermes Agent** + **RAG** + **ParameterExperience** + **Simulation** 的多智能体系统。
 
 ## 核心架构
 
@@ -38,11 +38,11 @@ multi_agent/
 │   └── guidance_optimization_workflow.py  # 优化工作流
 ├── tools/                         # Hermes 兼容工具
 │   ├── rag_tool.py               # RAG 检索/索引
-│   ├── dmb_tool.py               # DMB 记忆
+│   ├── parameter_experience_tool.py               # ParameterExperience 记忆
 │   ├── simulation_tool.py         # 仿真工具
 │   └── optimization_tool.py       # 优化工具
 ├── memory/                         # 核心记忆模块
-│   ├── dmb.py                    # 动态记忆缓冲
+│   ├── parameter_experience.py                    # 动态记忆缓冲
 │   └── rag_knowledge_base.py     # RAG 知识库
 └── optimizers/                    # 优化算法
     ├── genetic_optimizer.py       # 遗传算法
@@ -94,7 +94,7 @@ config.yaml
 ```bash
 # CLI 端到端执行（推荐）
 # 此命令将执行一次完整的端到端工作流：
-# 包含任务拆分、知识库读取、生成SysML模型、生成并运行MATLAB/Octave仿真、获取结果并反写到DMB。
+# 包含任务拆分、知识库读取、生成SysML模型、生成并运行MATLAB/Octave仿真、获取结果并反写到ParameterExperience。
 
 # 方式一：直接传递 prompt 字符串
 python cli_agent.py --prompt "分析不同导航系数(3.0, 4.0, 5.0)下的脱靶量，并给出最优推荐"
@@ -176,15 +176,15 @@ results = await rag.retrieve("导航系数", top_k=5)
 results = await rag.similarity_search("制导优化", threshold=0.7)
 ```
 
-### DMB 记忆
+### ParameterExperience 记忆
 
 ```python
-from multi_agent import DynamicMemoryBuffer, MemoryType
+from multi_agent import ParameterExperience, MemoryType
 
-dmb = DynamicMemoryBuffer()
+parameter_experience = ParameterExperience()
 
 # 存储经验
-await dmb.store(
+await parameter_experience.store(
     task_context={"task": "optimization"},
     parameters={"nav": 0.5},
     objectives={"miss": 0.1},
@@ -193,7 +193,7 @@ await dmb.store(
 )
 
 # 搜索相似经验
-results = await dmb.retrieve_similar({"task": "optimization"}, top_k=5)
+results = await parameter_experience.retrieve_similar({"task": "optimization"}, top_k=5)
 ```
 
 ### 制导系统仿真与模型生成
@@ -280,7 +280,7 @@ result = await workflow.run_optimization(
 ### config.yaml
 
 ```yaml
-dmb:
+parameter_experience:
   enabled: true
   max_short_term: 100
   max_long_term: 1000
@@ -319,8 +319,8 @@ simulation:
 |------|------|
 | `rag_retrieve` | 从知识库检索 |
 | `rag_index` | 索引文档 |
-| `dmb_search` | 搜索相似经验 |
-| `dmb_store` | 存储经验 |
+| `parameter_experience_search` | 搜索相似经验 |
+| `parameter_experience_store` | 存储经验 |
 | `generate_sysml` | 生成 SysML 模型 |
 | `generate_matlab` | 生成 MATLAB 脚本 |
 | `run_simulation` | 运行仿真 |
@@ -341,7 +341,7 @@ simulation:
 | 理解意图 | ✅ | |
 | 任务规划 | ✅ | |
 | 工具选择 | ✅ | |
-| 检索 | | RAG/DMB |
+| 检索 | | RAG/ParameterExperience |
 | 优化 | | RL |
 | 仿真 | | Simulation |
 | 子Agent执行 | | SubagentManager |

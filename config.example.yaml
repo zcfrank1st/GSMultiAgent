@@ -1,6 +1,6 @@
 # Multi-Agent Configuration
 
-dmb:
+parameter_experience:
   enabled: true
   max_short_term: 100
   max_long_term: 1000

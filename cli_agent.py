@@ -34,7 +34,7 @@ async def main(args):
         HERMES_AVAILABLE,
         IntelligentTaskPlanner,
         RAGKnowledgeBase,
-        DynamicMemoryBuffer,
+        ParameterExperience,
         MemoryType,
     )
     from multi_agent.simulation import GuidanceSimulator
@@ -51,12 +51,14 @@ async def main(args):
     #     {"content": "阻尼比0.2-0.5提供良好的系统稳定性", "metadata": {"topic": "stability"}},
     # ])
     
-    dmb = DynamicMemoryBuffer()
+    parameter_experience = ParameterExperience()
     
     simulator = GuidanceSimulator(
         output_dir="./guidance_output",
         engine="octave"  # Use octave as requested
     )
+    
+    reflection_agent = ReflectionAgent()
 
     hermes = None
     hermes_available = False
@@ -64,13 +66,12 @@ async def main(args):
         hermes = HermesIntegration()
         hermes_available = await hermes.initialize_with_tools(
             rag_kb=rag,
-            dmb=dmb,
+            parameter_experience=parameter_experience,
             simulator=simulator,
+            reflection_agent=reflection_agent,
         )
         if hermes_available:
             print(f"  Hermes initialized with tools.")
-    
-    reflection_agent = ReflectionAgent()
     
     current_prompt = args.prompt
     max_iterations = get_config().workflow.max_iterations
@@ -203,9 +204,9 @@ async def main(args):
             print("  Simulation result accepted! Ending loop.")
             break
 
-    # 4. DMB Experience Writeback
-    print("\n[Step 4] Writing Experience to DMB...")
-    await dmb.store(
+    # 4. ParameterExperience Experience Writeback
+    print("\n[Step 4] Writing Experience to ParameterExperience...")
+    await parameter_experience.store(
         task_context={"task": "guidance_optimization", "prompt": args.prompt},
         parameters=best_result["parameters"],
         objectives={

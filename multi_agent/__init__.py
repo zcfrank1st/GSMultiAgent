@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
 Multi-Agent Architecture
-基于 Hermes Agent + RAG + DMB + RL + Simulation 的多智能体系统
+基于 Hermes Agent + RAG + ParameterExperience + RL + Simulation 的多智能体系统
 
 核心设计理念：
 - 使用 Hermes Agent 作为 LLM 编排引擎
-- 我们的模块 (RAG/DMB/RL/Simulation) 作为 Hermes Tools 扩展
+- 我们的模块 (RAG/ParameterExperience/RL/Simulation) 作为 Hermes Tools 扩展
 - 不重复实现 Agent 框架，专注垂直领域能力
 """
 
@@ -17,7 +17,7 @@ warnings.filterwarnings("ignore", message="Could not import tool module")
 logging.getLogger("model_tools").setLevel(logging.ERROR)
 
 # Memory
-from .memory.dmb import DynamicMemoryBuffer, MemoryType
+from .memory.parameter_experience import ParameterExperience, MemoryType
 from .memory.rag_knowledge_base import RAGKnowledgeBase, EmbeddingConfig
 
 # RL (internal RL module)
@@ -58,7 +58,7 @@ from .config_loader import (
     reload_config,
     AppConfig,
     LLMConfig,
-    DMBConfig,
+    ParameterExperienceConfig,
     RAGConfig,
     GAConfig,
     OptimizerConfig,
@@ -80,8 +80,8 @@ from .optimizers import (
 from .tools import (
     RAGRetrievalTool,
     RAGIndexTool,
-    DMBSearchTool,
-    DMBStoreTool,
+    ParameterExperienceSearchTool,
+    ParameterExperienceStoreTool,
     GenerateSysMLTool,
     GenerateMATLABTool,
     RunSimulationTool,
@@ -95,7 +95,7 @@ from .tools import (
 __all__ = [
     "__version__",
     # Memory
-    "DynamicMemoryBuffer",
+    "ParameterExperience",
     "MemoryType",
     "RAGKnowledgeBase",
     "EmbeddingConfig",
@@ -131,7 +131,7 @@ __all__ = [
     "reload_config",
     "AppConfig",
     "LLMConfig",
-    "DMBConfig",
+    "ParameterExperienceConfig",
     "RAGConfig",
     "GAConfig",
     "OptimizerConfig",
@@ -147,8 +147,8 @@ __all__ = [
     # Tools
     "RAGRetrievalTool",
     "RAGIndexTool",
-    "DMBSearchTool",
-    "DMBStoreTool",
+    "ParameterExperienceSearchTool",
+    "ParameterExperienceStoreTool",
     "GenerateSysMLTool",
     "GenerateMATLABTool",
     "RunSimulationTool",

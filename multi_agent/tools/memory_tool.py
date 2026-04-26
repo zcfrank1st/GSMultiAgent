@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Memory Tools for Hermes Agent
-Provides unified memory search and storage across RAG and DMB
+Provides unified memory search and storage across RAG and ParameterExperience
 """
 
 import json
@@ -17,22 +17,22 @@ class MemoryToolMixin:
 
     def __init__(self, *args, **kwargs):
         self.rag_kb = None
-        self.dmb = None
+        self.parameter_experience = None
         super().__init__(*args, **kwargs)
 
     def set_rag_kb(self, rag_kb) -> None:
         self.rag_kb = rag_kb
 
-    def set_dmb(self, dmb) -> None:
-        self.dmb = dmb
+    def set_parameter_experience(self, parameter_experience) -> None:
+        self.parameter_experience = parameter_experience
 
 
 class MemorySearchTool(MemoryToolMixin):
-    """Tool for unified memory search across RAG and DMB"""
+    """Tool for unified memory search across RAG and ParameterExperience"""
 
     name = "memory_search"
     description = """
-    Search across both knowledge base (RAG) and experience memory (DMB).
+    Search across both knowledge base (RAG) and experience memory (ParameterExperience).
     Use this as the primary memory search tool for any query.
     Returns both documented knowledge and experiential learnings.
     """
@@ -70,8 +70,8 @@ class MemorySearchTool(MemoryToolMixin):
                 rag_results = await self.rag_kb.retrieve(query=query, top_k=top_k)
                 results["knowledge_results"] = rag_results
 
-            if search_type in ["all", "experience"] and self.dmb:
-                exp_results = await self.dmb.retrieve_similar(query={"query": query}, top_k=top_k)
+            if search_type in ["all", "experience"] and self.parameter_experience:
+                exp_results = await self.parameter_experience.retrieve_similar(query={"query": query}, top_k=top_k)
                 results["experience_results"] = exp_results
 
             return results
@@ -81,7 +81,7 @@ class MemorySearchTool(MemoryToolMixin):
 
 
 class MemoryStoreTool(MemoryToolMixin):
-    """Tool for storing to both RAG and DMB"""
+    """Tool for storing to both RAG and ParameterExperience"""
 
     name = "memory_store"
     description = """
@@ -119,10 +119,10 @@ class MemoryStoreTool(MemoryToolMixin):
                 return {"status": "success", "message": "Stored to knowledge base"}
 
             elif memory_type == "experience":
-                if not self.dmb:
-                    return {"status": "error", "message": "DMB not initialized"}
+                if not self.parameter_experience:
+                    return {"status": "error", "message": "ParameterExperience not initialized"}
 
-                memory_id = await self.dmb.store(
+                memory_id = await self.parameter_experience.store(
                     task_context=metadata or {},
                     parameters=metadata.get("parameters", {}) if metadata else {},
                     objectives=metadata.get("objectives", {}) if metadata else {},
@@ -157,9 +157,9 @@ class MemoryStatsTool(MemoryToolMixin):
                 rag_stats = await self.rag_kb.get_statistics()
                 results["knowledge_base"] = rag_stats
 
-            if self.dmb:
-                dmb_stats = await self.dmb.get_statistics()
-                results["experience_memory"] = dmb_stats
+            if self.parameter_experience:
+                parameter_experience_stats = await self.parameter_experience.get_statistics()
+                results["experience_memory"] = parameter_experience_stats
 
             return results
         except Exception as e:
