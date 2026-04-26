@@ -8,9 +8,12 @@ import argparse
 import math
 import os
 import json
+import logging
 from pathlib import Path
 from datetime import datetime
 from dotenv import load_dotenv
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 from multi_agent.simulation.guidance_simulator import GuidanceParameters
 

@@ -11,6 +11,14 @@ import warnings
 warnings.filterwarnings("ignore", message="Could not import tool module")
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+if not logger.handlers:
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+logger.propagate = False
+
 
 HERMES_AVAILABLE = False
 HermesIntegration = None
