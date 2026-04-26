@@ -9,8 +9,10 @@ import logging
 import time
 import json
 import hashlib
+import os
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 from enum import Enum
 from collections import OrderedDict
 
@@ -44,17 +46,22 @@ class DynamicMemoryBuffer:
         max_long_term_size: int = 1000,
         similarity_threshold: float = 0.7,
         decay_factor: float = 0.95,
+        persist_path: str = "./dmb_memory.json",
     ):
         self.max_short_term_size = max_short_term_size
         self.max_long_term_size = max_long_term_size
         self.similarity_threshold = similarity_threshold
         self.decay_factor = decay_factor
+        self.persist_path = Path(persist_path)
 
         self._short_term_memory: OrderedDict[str, MemoryEntry] = OrderedDict()
         self._long_term_memory: OrderedDict[str, MemoryEntry] = OrderedDict()
         self._episodic_memory: List[MemoryEntry] = []
 
         self._access_counts: Dict[str, int] = {}
+        
+        # Load persisted memory on initialization
+        self.load()
 
     async def store(
         self,
@@ -88,6 +95,9 @@ class DynamicMemoryBuffer:
             self._episodic_memory.append(entry)
 
         logger.info(f"Stored memory {memory_id} with fitness {fitness}")
+        
+        # Save memory state after store
+        self.save()
         return memory_id
 
     async def retrieve_similar(
@@ -185,6 +195,7 @@ class DynamicMemoryBuffer:
             self._long_term_memory[memory_id] = entry
             self._evict_long_term_if_needed()
             logger.info(f"Promoted memory {memory_id} to long-term")
+            self.save()
             return True
         return False
 
@@ -283,3 +294,71 @@ class DynamicMemoryBuffer:
             self._long_term_memory.clear()
         elif memory_type == MemoryType.EPISODIC:
             self._episodic_memory.clear()
+            
+        # Always persist clear operations
+        self.save()
+
+    def save(self) -> bool:
+        """Persist memory to disk"""
+        try:
+            # Ensure directory exists
+            self.persist_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            def serialize_entry(entry: MemoryEntry) -> Dict:
+                data = asdict(entry)
+                data["memory_type"] = entry.memory_type.value
+                return data
+                
+            data = {
+                "short_term": [serialize_entry(e) for e in self._short_term_memory.values()],
+                "long_term": [serialize_entry(e) for e in self._long_term_memory.values()],
+                "episodic": [serialize_entry(e) for e in self._episodic_memory],
+                "access_counts": self._access_counts
+            }
+            
+            with open(self.persist_path, 'w', encoding='utf-8') as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+                
+            logger.info(f"Successfully saved DMB memory to {self.persist_path}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to save DMB memory to disk: {e}")
+            return False
+
+    def load(self) -> bool:
+        """Load memory from disk"""
+        if not self.persist_path.exists():
+            return False
+            
+        try:
+            with open(self.persist_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                
+            def deserialize_entry(entry_dict: Dict) -> MemoryEntry:
+                entry_dict["memory_type"] = MemoryType(entry_dict["memory_type"])
+                return MemoryEntry(**entry_dict)
+                
+            # Clear existing memory before loading
+            self.clear()
+            
+            # Load short-term
+            for item in data.get("short_term", []):
+                entry = deserialize_entry(item)
+                self._short_term_memory[entry.memory_id] = entry
+                
+            # Load long-term
+            for item in data.get("long_term", []):
+                entry = deserialize_entry(item)
+                self._long_term_memory[entry.memory_id] = entry
+                
+            # Load episodic
+            self._episodic_memory = [deserialize_entry(item) for item in data.get("episodic", [])]
+            
+            # Load access counts
+            self._access_counts = data.get("access_counts", {})
+            
+            logger.info(f"Successfully loaded DMB memory from {self.persist_path}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to load DMB memory from disk: {e}")
+            return False
